@@ -3,10 +3,10 @@ name: Android CI
 on:
   push:
     branches:
-      - features/TC-200/create-github-actions-pipeline-for-android-app
+      - main
   pull_request:
     branches:
-      - features/TC-200/create-github-actions-pipeline-for-android-app
+      - main
 
 jobs:
   build-petram:
