@@ -13,10 +13,16 @@ jobs:
     name: Build Petram
     runs-on: ubuntu-latest
     container:
-      image: cimg/android:2024.06-node   # Android + Node.js (June 2024)
-      options: --user 0:0                # run as root to avoid EACCES
+      image: cimg/android:2024.06          # Maintained CircleCI Android image
+      options: --user 0:0                  # Run as root to avoid EACCES on /__w
     steps:
       - uses: actions/checkout@v4
+
+      # If your build uses Node (react-native tooling, etc.)
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
       - name: Install curl
         run: apt-get update -y && apt-get install -y curl
@@ -26,7 +32,7 @@ jobs:
         env:
           SECURE_FILES_DOWNLOAD_PATH: ./Development
 
-      - name: Ensure Android SDK
+      - name: Ensure Android SDK (API 33)
         run: |
           yes | sdkmanager "platforms;android-33" "build-tools;33.0.2"
 
@@ -37,10 +43,14 @@ jobs:
     name: Build Azure
     runs-on: ubuntu-latest
     container:
-      image: cimg/android:2024.06-node
+      image: cimg/android:2024.06
       options: --user 0:0
     steps:
       - uses: actions/checkout@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
       - run: apt-get update -y && apt-get install -y curl
       - run: curl -s https://gitlab.com/gitlab-org/incubation-engineering/mobile-devops/download-secure-files/-/raw/main/installer | bash
         env:
@@ -52,10 +62,14 @@ jobs:
     name: Build Azure B2C
     runs-on: ubuntu-latest
     container:
-      image: cimg/android:2024.06-node
+      image: cimg/android:2024.06
       options: --user 0:0
     steps:
       - uses: actions/checkout@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
       - run: apt-get update -y && apt-get install -y curl
       - run: curl -s https://gitlab.com/gitlab-org/incubation-engineering/mobile-devops/download-secure-files/-/raw/main/installer | bash
         env:
@@ -67,10 +81,14 @@ jobs:
     name: Build Okta
     runs-on: ubuntu-latest
     container:
-      image: cimg/android:2024.06-node
+      image: cimg/android:2024.06
       options: --user 0:0
     steps:
       - uses: actions/checkout@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
       - run: apt-get update -y && apt-get install -y curl
       - run: curl -s https://gitlab.com/gitlab-org/incubation-engineering/mobile-devops/download-secure-files/-/raw/main/installer | bash
         env:
