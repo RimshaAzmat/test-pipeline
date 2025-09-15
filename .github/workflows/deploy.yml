@@ -3,46 +3,167 @@ name: Android CI
 on:
   push:
     branches:
-      - main
+      - features/TC-200/create-github-actions-pipeline-for-android-app
   pull_request:
     branches:
-      - main
+      - features/TC-200/create-github-actions-pipeline-for-android-app
+
 jobs:
   build-petram:
     name: Build Petram
     runs-on: ubuntu-latest
-    container:
-      image: circleci/android:api-30-node
-      options: --user 0:0
     steps:
       - uses: actions/checkout@v4
 
-      # ---- FIX EOL Debian Buster APT sources (and stale Google Cloud SDK entry) ----
-      - name: Patch APT sources for Debian Buster (EOL)
-        run: |
-          set -eux
-          # Point to archive mirrors
-          sed -i 's|deb.debian.org/debian|archive.debian.org/debian|g' /etc/apt/sources.list
-          sed -i 's|security.debian.org/debian-security|archive.debian.org/debian-security|g' /etc/apt/sources.list || true
-          # buster/updates no longer exists in archive; use just "buster"
-          sed -i 's|buster/updates|buster|g' /etc/apt/sources.list || true
-          # Some archive snapshots are past Valid-Until; disable the check
-          echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99no-check-valid-until
-          # Remove stale google-cloud-sdk list (or you can add its key instead)
-          rm -f /etc/apt/sources.list.d/google-cloud-sdk.list || true
-          apt-get update -y
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
-      - name: Install curl
-        run: apt-get install -y curl
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Ensure Android SDK packages (API 33)
+        run: |
+          yes | sdkmanager "platform-tools" \
+                           "platforms;android-33" \
+                           "build-tools;33.0.2"
+
+      - name: Install curl (if needed)
+        run: sudo apt-get update -y && sudo apt-get install -y curl
 
       - name: Download secure files
         run: curl -s https://gitlab.com/gitlab-org/incubation-engineering/mobile-devops/download-secure-files/-/raw/main/installer | bash
         env:
           SECURE_FILES_DOWNLOAD_PATH: ./Development
 
-      - name: Ensure Android SDK (API 33)
-        run: |
-          yes | sdkmanager "platforms;android-33" "build-tools;33.0.2"
-
       - name: Build Petram
         run: make build-petram
+
+  build-azure:
+    name: Build Azure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: android-actions/setup-android@v3
+      - run: |
+          yes | sdkmanager "platform-tools" \
+                           "platforms;android-33" \
+                           "build-tools;33.0.2"
+      - run: sudo apt-get update -y && sudo apt-get install -y curl
+      - run: curl -s https://gitlab.com/gitlab-org/incubation-engineering/mobile-devops/download-secure-files/-/raw/main/installer | bash
+        env:
+          SECURE_FILES_DOWNLOAD_PATH: ./Development
+      - run: make build-azure
+
+  build-azureb2c:
+    name: Build Azure B2C
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: android-actions/setup-android@v3
+      - run: |
+          yes | sdkmanager "platform-tools" \
+                           "platforms;android-33" \
+                           "build-tools;33.0.2"
+      - run: sudo apt-get update -y && sudo apt-get install -y curl
+      - run: curl -s https://gitlab.com/gitlab-org/incubation-engineering/mobile-devops/download-secure-files/-/raw/main/installer | bash
+        env:
+          SECURE_FILES_DOWNLOAD_PATH: ./Development
+      - run: make build-azureb2c
+
+  build-okta:
+    name: Build Okta
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: android-actions/setup-android@v3
+      - run: |
+          yes | sdkmanager "platform-tools" \
+                           "platforms;android-33" \
+                           "build-tools;33.0.2"
+      - run: sudo apt-get update -y && sudo apt-get install -y curl
+      - run: curl -s https://gitlab.com/gitlab-org/incubation-engineering/mobile-devops/download-secure-files/-/raw/main/installer | bash
+        env:
+          SECURE_FILES_DOWNLOAD_PATH: ./Development
+      - run: make build-okta
+
+  # === Security Scanning Jobs ===
+  sast:
+    name: Static Application Security Testing
+    runs-on: ubuntu-latest
+    needs: [build-petram, build-azure, build-azureb2c, build-okta]
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: java
+      - uses: github/codeql-action/autobuild@v3
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:java"
+
+  dependency_scanning:
+    name: Dependency Scanning
+    runs-on: ubuntu-latest
+    needs: [build-petram, build-azure, build-azureb2c, build-okta]
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          scan-type: fs
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-results.sarif
+      - name: Upload trivy sarif
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+  secret-detection:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    needs: [build-petram, build-azure, build-azureb2c, build-okta]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan for secrets
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          args: detect --source . --no-banner --redact
